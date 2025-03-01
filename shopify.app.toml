@@ -1,0 +1,36 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "419710c60e1c09f1dea83f4d28576bea"
+application_url = "https://shorts-style-passes-buying.trycloudflare.com"
+embedded = true
+name = "partner-collections"
+handle = "partner-collections"
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-01"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_products"
+
+[auth]
+redirect_urls = [
+  "https://shorts-style-passes-buying.trycloudflare.com/auth/callback",
+  "https://shorts-style-passes-buying.trycloudflare.com/auth/shopify/callback",
+  "https://shorts-style-passes-buying.trycloudflare.com/api/auth/callback"
+]
+
+[pos]
+embedded = false
