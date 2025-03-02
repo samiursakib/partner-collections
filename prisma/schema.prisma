@@ -35,12 +35,12 @@ model Collection {
   id Int @id @default(autoincrement())
   name String @unique
   priority String
-  productIds Product[]
+  products Product[]
 }
 
 model Product {
   id String @id
   title String
-  collection Collection @relation(fields: [collectionId], references: [id])
   collectionId Int
+  collection Collection @relation(fields: [collectionId], references: [id])
 }

@@ -1,4 +1,6 @@
+import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useNavigate } from "@remix-run/react";
+import { Modal, TitleBar } from "@shopify/app-bridge-react";
 import {
   BlockStack,
   Box,
@@ -17,13 +19,42 @@ import {
   TextField,
   Thumbnail,
 } from "@shopify/polaris";
-import { useState } from "react";
 import { SearchIcon, XIcon } from "@shopify/polaris-icons";
-import { Modal, TitleBar } from "@shopify/app-bridge-react";
-import type { Product } from "app/types";
-import { json, type LoaderFunctionArgs } from "@remix-run/node";
-import { authenticate } from "app/shopify.server";
 import { createCollection } from "app/services";
+import { authenticate } from "app/shopify.server";
+import type { Product } from "app/types";
+import { useEffect, useState } from "react";
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const { admin } = await authenticate.admin(request);
+  const response = await admin.graphql(`
+    {
+      products(first: 250) {
+        nodes {
+          id
+          title
+          description
+          vendor
+          productType
+          media(first: 1) {
+            nodes {
+              preview {
+                image {
+                  url
+                  altText
+                }
+              }
+            }
+          }
+          createdAt
+          updatedAt
+        }
+      }
+    }
+  `);
+  const result = await response.json();
+  return json({ products: result.data.products.nodes });
+}
 
 export default function CreateCollection() {
   const navigate = useNavigate();
@@ -39,15 +70,29 @@ export default function CreateCollection() {
     productIds: [],
   });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [hasMounted, setHasMounted] = useState(false);
 
   const handleSubmit = async () => {
-    const result = await createCollection(formData);
+    const result = await createCollection({
+      name: formData.name,
+      priority: formData.priority,
+      products: products
+        .filter((p: Product) => formData.productIds.includes(p.id))
+        .map((p: Product) => ({ id: p.id, title: p.title })),
+    });
     if (result.success) {
       shopify.toast.show(result.message);
+      navigate("/app");
     } else {
       shopify.toast.show(result.message);
     }
   };
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  if (!hasMounted) return null;
 
   return (
     <>
@@ -186,7 +231,6 @@ export default function CreateCollection() {
                       ? prev.filter((id) => id !== product.id)
                       : [...prev, product.id],
                   );
-                  shopify.toast.show(JSON.stringify(formData));
                 }}
               />
               <Thumbnail
@@ -222,35 +266,4 @@ export default function CreateCollection() {
       </Modal>
     </>
   );
-}
-
-export async function loader({ request }: LoaderFunctionArgs) {
-  const { admin } = await authenticate.admin(request);
-  const response = await admin.graphql(`
-    {
-      products(first: 250) {
-        nodes {
-          id
-          title
-          description
-          vendor
-          productType
-          media(first: 1) {
-            nodes {
-              preview {
-                image {
-                  url
-                  altText
-                }
-              }
-            }
-          }
-          createdAt
-          updatedAt
-        }
-      }
-    }
-  `);
-  const result = await response.json();
-  return json({ products: result.data.products.nodes });
 }

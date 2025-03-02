@@ -9,7 +9,22 @@ export async function action({ request }: ActionFunctionArgs) {
         console.log(body);
         if (!body.name || !body.priority)
           throw new Error("Missing name or priority");
-        const result = await prisma.collection.create({ data: body });
+        const payload = {
+          data: {
+            name: body.name as string,
+            priority: body.priority as string,
+            products: {
+              create: body.products.map((p: { id: string; title: string }) => ({
+                id: p.id,
+                title: p.title,
+              })),
+            },
+          },
+          include: {
+            products: true,
+          },
+        };
+        const result = await prisma.collection.create(payload);
         console.log("##############", result);
         return new Response(
           JSON.stringify({ success: true, message: "Collection created" }),

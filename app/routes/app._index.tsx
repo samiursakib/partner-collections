@@ -1,88 +1,28 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { EmptyState, LegacyCard, Page } from "@shopify/polaris";
-import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
-import { useNavigate } from "@remix-run/react";
+import type { Collection, Product } from "@prisma/client";
+import { type LoaderFunctionArgs, json } from "@remix-run/node";
+import { useLoaderData, useNavigate } from "@remix-run/react";
+import { TitleBar } from "@shopify/app-bridge-react";
+import {
+  EmptyState,
+  IndexTable,
+  LegacyCard,
+  Page,
+  Text,
+} from "@shopify/polaris";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-
-  return null;
-};
-
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-          }
-        }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-        },
-      },
+export async function loader({ request }: { request: LoaderFunctionArgs }) {
+  const collections = await prisma.collection.findMany({
+    include: {
+      products: true,
     },
-  );
-  const responseJson = await response.json();
-
-  const product = responseJson.data!.productCreate!.product!;
-  const variantId = product.variants.edges[0]!.node!.id!;
-
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyRemixTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
-        }
-      }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
-  );
-
-  const variantResponseJson = await variantResponse.json();
-
-  return {
-    product: responseJson!.data!.productCreate!.product,
-    variant:
-      variantResponseJson!.data!.productVariantsBulkUpdate!.productVariants,
-  };
-};
+  });
+  return json({ collections });
+}
 
 export default function Index() {
-  const shopify = useAppBridge();
   const navigate = useNavigate();
-  const products = [];
+  const loaderData = useLoaderData<typeof loader>();
+  const collections: Collection[] = loaderData.collections;
   return (
     <Page>
       <TitleBar title="Remix app template">
@@ -90,7 +30,7 @@ export default function Index() {
           Create a collection
         </button>
       </TitleBar>
-      {!products.length ? (
+      {!collections.length ? (
         <LegacyCard sectioned>
           <EmptyState
             heading="View your collections here"
@@ -99,7 +39,34 @@ export default function Index() {
             <p>Track and manage your collections created so far.</p>
           </EmptyState>
         </LegacyCard>
-      ) : null}
+      ) : (
+        <IndexTable
+          resourceName={{
+            singular: "collection",
+            plural: "collections",
+          }}
+          itemCount={collections.length}
+          headings={[
+            { title: "Name" },
+            { title: "Products count" },
+            { title: "Priority" },
+          ]}
+        >
+          {collections.map((c, index) => (
+            <IndexTable.Row id={c.id.toString()} key={c.id} position={index}>
+              <IndexTable.Cell>
+                <Text variant="bodyMd" fontWeight="bold" as="span">
+                  {c.name}
+                </Text>
+              </IndexTable.Cell>
+              <IndexTable.Cell>
+                {(c as Collection & { products: Product[] }).products.length}
+              </IndexTable.Cell>
+              <IndexTable.Cell>{c.priority}</IndexTable.Cell>
+            </IndexTable.Row>
+          ))}
+        </IndexTable>
+      )}
     </Page>
   );
 }

@@ -21,5 +21,5 @@ export type Product = {
 export type CreateCollectionPayload = {
   name: string;
   priority: string;
-  productIds: string[];
+  products: { id: string; title: string }[];
 };
