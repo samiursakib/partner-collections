@@ -17,3 +17,9 @@ export type Product = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type CreateCollectionPayload = {
+  name: string;
+  priority: string;
+  productIds: string[];
+};

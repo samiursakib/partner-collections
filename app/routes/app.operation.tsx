@@ -1,4 +1,4 @@
-import { Form, useLoaderData, useNavigate } from "@remix-run/react";
+import { useLoaderData, useNavigate } from "@remix-run/react";
 import {
   BlockStack,
   Box,
@@ -23,6 +23,7 @@ import { Modal, TitleBar } from "@shopify/app-bridge-react";
 import type { Product } from "app/types";
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { authenticate } from "app/shopify.server";
+import { createCollection } from "app/services";
 
 export default function CreateCollection() {
   const navigate = useNavigate();
@@ -38,28 +39,34 @@ export default function CreateCollection() {
     productIds: [],
   });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [confirmedIds, setConfirmedIds] = useState<string[]>([]);
+
+  const handleSubmit = async () => {
+    const result = await createCollection(formData);
+    if (result.success) {
+      shopify.toast.show(result.message);
+    } else {
+      shopify.toast.show(result.message);
+    }
+  };
 
   return (
     <>
       <Page narrowWidth title="Create Collection" backAction={{ url: "/app" }}>
-        <Form method="post">
+        <Box>
           <BlockStack gap={"400"}>
             <Card>
               <BlockStack gap="300">
                 <TextField
                   type="text"
-                  name="name"
                   label="Name"
                   placeholder="collection name"
                   autoComplete="on"
                   value={formData.name}
-                  onChange={(value) =>
-                    setFormData({ ...formData, name: value })
-                  }
+                  onChange={(value) => {
+                    setFormData({ ...formData, name: value });
+                  }}
                 />
                 <Select
-                  name="priority"
                   label="Priority"
                   options={[
                     { label: "High", value: "high" },
@@ -67,9 +74,9 @@ export default function CreateCollection() {
                     { label: "Low", value: "low" },
                   ]}
                   value={formData.priority}
-                  onChange={(value) =>
-                    setFormData({ ...formData, priority: value })
-                  }
+                  onChange={(value) => {
+                    setFormData({ ...formData, priority: value });
+                  }}
                 />
               </BlockStack>
             </Card>
@@ -108,7 +115,7 @@ export default function CreateCollection() {
                   <BlockStack gap="200">
                     {products
                       .filter((product: Product) =>
-                        confirmedIds.includes(product.id),
+                        formData.productIds.includes(product.id),
                       )
                       .map((product: Product, index: number) => (
                         <>
@@ -158,9 +165,9 @@ export default function CreateCollection() {
               </Box>
             </Card>
           </BlockStack>
-        </Form>
+        </Box>
         <PageActions
-          primaryAction={{ content: "Save", onAction: () => {} }}
+          primaryAction={{ content: "Save", onAction: handleSubmit }}
           secondaryActions={[
             { content: "Cancel", onAction: () => navigate("/app") },
           ]}
@@ -179,6 +186,7 @@ export default function CreateCollection() {
                       ? prev.filter((id) => id !== product.id)
                       : [...prev, product.id],
                   );
+                  shopify.toast.show(JSON.stringify(formData));
                 }}
               />
               <Thumbnail
@@ -201,7 +209,7 @@ export default function CreateCollection() {
             variant="primary"
             disabled={selectedIds.length === 0}
             onClick={() => {
-              setConfirmedIds(selectedIds);
+              setFormData({ ...formData, productIds: selectedIds });
               shopify.modal.hide("products-modal");
             }}
           >
