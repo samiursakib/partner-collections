@@ -53,16 +53,23 @@ export default function Index() {
           ]}
         >
           {collections.map((c, index) => (
-            <IndexTable.Row id={c.id.toString()} key={c.id} position={index}>
+            <IndexTable.Row
+              id={c.id.toString()}
+              key={c.id}
+              position={index}
+              onClick={() => navigate(`/app/operation?collection_id=${c.id}`)}
+            >
               <IndexTable.Cell>
-                <Text variant="bodyMd" fontWeight="bold" as="span">
+                <Text variant="bodyMd" as="span">
                   {c.name}
                 </Text>
               </IndexTable.Cell>
               <IndexTable.Cell>
                 {(c as Collection & { products: Product[] }).products.length}
               </IndexTable.Cell>
-              <IndexTable.Cell>{c.priority}</IndexTable.Cell>
+              <IndexTable.Cell>
+                {c.priority.charAt(0).toUpperCase() + c.priority.slice(1)}
+              </IndexTable.Cell>
             </IndexTable.Row>
           ))}
         </IndexTable>
