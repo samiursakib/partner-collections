@@ -1,5 +1,9 @@
-import { Form, useLoaderData, useNavigate } from "@remix-run/react";
+import type { Collection, Product as PrismaProduct } from "@prisma/client";
+import { json, type LoaderFunctionArgs } from "@remix-run/node";
+import { useLoaderData, useNavigate } from "@remix-run/react";
+import { Modal, TitleBar } from "@shopify/app-bridge-react";
 import {
+  Badge,
   BlockStack,
   Box,
   Button,
@@ -17,49 +21,130 @@ import {
   TextField,
   Thumbnail,
 } from "@shopify/polaris";
-import { useState } from "react";
 import { SearchIcon, XIcon } from "@shopify/polaris-icons";
-import { Modal, TitleBar } from "@shopify/app-bridge-react";
-import type { Product } from "app/types";
-import { json, type LoaderFunctionArgs } from "@remix-run/node";
+import { deleteCollection, upsertCollection } from "app/services";
 import { authenticate } from "app/shopify.server";
+import type { Product } from "app/types";
+import { useEffect, useState } from "react";
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const { admin } = await authenticate.admin(request);
+  const collectionId = new URL(request.url).searchParams.get("collection_id");
+  console.log(request.url, collectionId);
+  const adminStoreProductsResponse = await admin.graphql(`
+    {
+      products(first: 250) {
+        nodes {
+          id
+          title
+          description
+          vendor
+          productType
+          media(first: 1) {
+            nodes {
+              preview {
+                image {
+                  url
+                  altText
+                }
+              }
+            }
+          }
+          createdAt
+          updatedAt
+        }
+      }
+    }
+  `);
+  const storeProducts = await adminStoreProductsResponse.json();
+  const collections = await prisma.collection.findMany({
+    include: {
+      products: true,
+    },
+  });
+  const editableCollection = collections.find(
+    (c) => c.id === Number(collectionId),
+  );
+  console.log("#########", editableCollection);
+  return json({
+    products: storeProducts.data.products.nodes,
+    collections,
+    editableCollection,
+  });
+}
 
 export default function CreateCollection() {
   const navigate = useNavigate();
-  const { products } = useLoaderData<typeof loader>();
-
+  const { products, collections, editableCollection } =
+    useLoaderData<typeof loader>();
+  const alreadyGroupedProducts = collections.map(
+    (c: Collection & { products: PrismaProduct[] }) => c.products,
+  );
+  const flattenedAlreadyGroupedProductIds = alreadyGroupedProducts
+    .flat()
+    .map((p) => p.id);
   const [formData, setFormData] = useState<{
     name: string;
     priority: string;
     productIds: string[];
   }>({
-    name: "",
-    priority: "",
-    productIds: [],
+    name: editableCollection ? editableCollection.name : "",
+    priority: editableCollection ? editableCollection.priority : "high",
+    productIds: editableCollection
+      ? editableCollection.products.map((p) => p.id)
+      : [],
   });
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [confirmedIds, setConfirmedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    editableCollection ? editableCollection.products.map((p) => p.id) : [],
+  );
+  const [hasMounted, setHasMounted] = useState(false);
+
+  const handleSubmit = async () => {
+    const payload = {
+      id: editableCollection?.id,
+      name: formData.name,
+      priority: formData.priority,
+      products: products
+        .filter((p: Product) => formData.productIds.includes(p.id))
+        .map((p: Product) => ({ id: p.id, title: p.title })),
+    };
+    const result = await upsertCollection(!!editableCollection, payload);
+    if (result.success) {
+      navigate("/app");
+    }
+    shopify.toast.show(result.message);
+  };
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  if (!hasMounted) return null;
 
   return (
     <>
-      <Page narrowWidth title="Create Collection" backAction={{ url: "/app" }}>
-        <Form method="post">
+      <Page
+        narrowWidth
+        title={
+          editableCollection ? editableCollection.name : "Create Collection"
+        }
+        backAction={{ url: "/app" }}
+      >
+        <Box>
           <BlockStack gap={"400"}>
             <Card>
               <BlockStack gap="300">
                 <TextField
                   type="text"
-                  name="name"
                   label="Name"
                   placeholder="collection name"
                   autoComplete="on"
                   value={formData.name}
-                  onChange={(value) =>
-                    setFormData({ ...formData, name: value })
-                  }
+                  onChange={(value) => {
+                    setFormData({ ...formData, name: value });
+                  }}
                 />
                 <Select
-                  name="priority"
                   label="Priority"
                   options={[
                     { label: "High", value: "high" },
@@ -67,9 +152,9 @@ export default function CreateCollection() {
                     { label: "Low", value: "low" },
                   ]}
                   value={formData.priority}
-                  onChange={(value) =>
-                    setFormData({ ...formData, priority: value })
-                  }
+                  onChange={(value) => {
+                    setFormData({ ...formData, priority: value });
+                  }}
                 />
               </BlockStack>
             </Card>
@@ -108,7 +193,7 @@ export default function CreateCollection() {
                   <BlockStack gap="200">
                     {products
                       .filter((product: Product) =>
-                        confirmedIds.includes(product.id),
+                        formData.productIds.includes(product.id),
                       )
                       .map((product: Product, index: number) => (
                         <>
@@ -143,11 +228,17 @@ export default function CreateCollection() {
                               <Button
                                 variant="plain"
                                 icon={XIcon}
-                                onClick={() =>
+                                onClick={() => {
                                   setSelectedIds((prev) =>
                                     prev.filter((id) => id !== product.id),
-                                  )
-                                }
+                                  );
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    productIds: prev.productIds.filter(
+                                      (id) => id !== product.id,
+                                    ),
+                                  }));
+                                }}
                               />
                             </BlockStack>
                           </InlineStack>
@@ -158,50 +249,83 @@ export default function CreateCollection() {
               </Box>
             </Card>
           </BlockStack>
-        </Form>
+        </Box>
         <PageActions
-          primaryAction={{ content: "Save", onAction: () => {} }}
+          primaryAction={{ content: "Save", onAction: handleSubmit }}
           secondaryActions={[
-            { content: "Cancel", onAction: () => navigate("/app") },
+            editableCollection
+              ? {
+                  content: "Delete",
+                  destructive: true,
+                  onAction: async () => {
+                    const result = await deleteCollection(
+                      editableCollection.id,
+                    );
+                    if (result.success) navigate("/app");
+                    shopify.toast.show(result.message);
+                  },
+                }
+              : {
+                  content: "Cancel",
+                  onAction: () => navigate("/app"),
+                },
           ]}
         />
       </Page>
       <Modal id="products-modal">
-        {products.map((product: Product) => (
-          <Box key={product.id} paddingBlock={"200"} paddingInline={"400"}>
-            <InlineStack gap="200">
-              <Checkbox
-                label={""}
-                checked={selectedIds.includes(product.id)}
-                onChange={() => {
-                  setSelectedIds((prev) =>
-                    prev.includes(product.id)
-                      ? prev.filter((id) => id !== product.id)
-                      : [...prev, product.id],
-                  );
-                }}
-              />
-              <Thumbnail
-                size="small"
-                source={product.media.nodes[0]?.preview.image.url}
-                alt={product.media.nodes[0]?.preview.image.altText}
-              />
-              <BlockStack align="center">
-                <Box paddingInlineStart={"200"}>
-                  <Text variant="bodyMd" as="h3">
-                    {product.title}
-                  </Text>
-                </Box>
-              </BlockStack>
-            </InlineStack>
-          </Box>
-        ))}
+        {products.map((product: Product) => {
+          const isAlreadyAddedToAnotherCollection =
+            flattenedAlreadyGroupedProductIds.includes(product.id);
+          const assignedCollection = collections.find((c) =>
+            c.products.map((p) => p.id).includes(product.id),
+          );
+          return (
+            <Box key={product.id} paddingBlock={"200"} paddingInline={"400"}>
+              <InlineStack align="space-between">
+                <InlineStack gap="200">
+                  <Checkbox
+                    label={""}
+                    checked={selectedIds.includes(product.id)}
+                    disabled={
+                      isAlreadyAddedToAnotherCollection &&
+                      assignedCollection?.id !== editableCollection?.id
+                    }
+                    onChange={() => {
+                      shopify.toast.show(selectedIds.length.toString());
+                      setSelectedIds((prev) =>
+                        prev.includes(product.id)
+                          ? prev.filter((id) => id !== product.id)
+                          : [...prev, product.id],
+                      );
+                    }}
+                  />
+                  <Thumbnail
+                    size="small"
+                    source={product.media.nodes[0]?.preview.image.url}
+                    alt={product.media.nodes[0]?.preview.image.altText}
+                  />
+                  <BlockStack align="center">
+                    <Box paddingInlineStart={"200"}>
+                      <Text variant="bodyMd" as="h3">
+                        {product.title}
+                      </Text>
+                    </Box>
+                  </BlockStack>
+                </InlineStack>
+                {isAlreadyAddedToAnotherCollection ? (
+                  <BlockStack align="center">
+                    {<Badge tone="success">{assignedCollection?.name}</Badge>}
+                  </BlockStack>
+                ) : null}
+              </InlineStack>
+            </Box>
+          );
+        })}
         <TitleBar title="Add products">
           <button
             variant="primary"
-            disabled={selectedIds.length === 0}
             onClick={() => {
-              setConfirmedIds(selectedIds);
+              setFormData({ ...formData, productIds: selectedIds });
               shopify.modal.hide("products-modal");
             }}
           >
@@ -214,35 +338,4 @@ export default function CreateCollection() {
       </Modal>
     </>
   );
-}
-
-export async function loader({ request }: LoaderFunctionArgs) {
-  const { admin } = await authenticate.admin(request);
-  const response = await admin.graphql(`
-    {
-      products(first: 250) {
-        nodes {
-          id
-          title
-          description
-          vendor
-          productType
-          media(first: 1) {
-            nodes {
-              preview {
-                image {
-                  url
-                  altText
-                }
-              }
-            }
-          }
-          createdAt
-          updatedAt
-        }
-      }
-    }
-  `);
-  const result = await response.json();
-  return json({ products: result.data.products.nodes });
 }

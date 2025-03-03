@@ -31,22 +31,16 @@ model Session {
   emailVerified Boolean?  @default(false)
 }
 
-enum Priority {
-  High
-  Medium
-  Low
-}
-
 model Collection {
   id Int @id @default(autoincrement())
   name String @unique
-  priority Priority
-  productIds Product[]
+  priority String
+  products Product[]
 }
 
 model Product {
   id String @id
   title String
-  collection Collection @relation(fields: [collectionId], references: [id])
   collectionId Int
+  collection Collection @relation(fields: [collectionId], references: [id])
 }

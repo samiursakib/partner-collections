@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "419710c60e1c09f1dea83f4d28576bea"
-application_url = "https://shorts-style-passes-buying.trycloudflare.com"
+application_url = "https://ev-rage-competitors-wellness.trycloudflare.com"
 embedded = true
 name = "partner-collections"
 handle = "partner-collections"
@@ -27,9 +27,9 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [
-  "https://shorts-style-passes-buying.trycloudflare.com/auth/callback",
-  "https://shorts-style-passes-buying.trycloudflare.com/auth/shopify/callback",
-  "https://shorts-style-passes-buying.trycloudflare.com/api/auth/callback"
+  "https://ev-rage-competitors-wellness.trycloudflare.com/auth/callback",
+  "https://ev-rage-competitors-wellness.trycloudflare.com/auth/shopify/callback",
+  "https://ev-rage-competitors-wellness.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]
