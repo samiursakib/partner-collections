@@ -30,7 +30,6 @@ import { useEffect, useState } from "react";
 export async function loader({ request }: LoaderFunctionArgs) {
   const { admin } = await authenticate.admin(request);
   const collectionId = new URL(request.url).searchParams.get("collection_id");
-  console.log(request.url, collectionId);
   const adminStoreProductsResponse = await admin.graphql(`
     {
       products(first: 250) {
@@ -65,7 +64,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const editableCollection = collections.find(
     (c) => c.id === Number(collectionId),
   );
-  console.log("#########", editableCollection);
   return json({
     products: storeProducts.data.products.nodes,
     collections,
