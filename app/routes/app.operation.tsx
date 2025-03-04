@@ -289,7 +289,6 @@ export default function CreateCollection() {
                       assignedCollection?.id !== editableCollection?.id
                     }
                     onChange={() => {
-                      shopify.toast.show(selectedIds.length.toString());
                       setSelectedIds((prev) =>
                         prev.includes(product.id)
                           ? prev.filter((id) => id !== product.id)

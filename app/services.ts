@@ -13,14 +13,12 @@ export const upsertCollection = async (
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      console.log("response.statusText", response.statusText);
       throw new Error(response.statusText);
     }
     const result = await response.json();
-    console.log(result);
     return result;
   } catch (err) {
-    console.log(err);
+    console.error(err);
     return { success: false, message: (err as Error).message };
   }
 };
