@@ -3,6 +3,7 @@ import { type LoaderFunctionArgs, json } from "@remix-run/node";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import { TitleBar } from "@shopify/app-bridge-react";
 import {
+  Badge,
   EmptyState,
   IndexTable,
   LegacyCard,
@@ -16,7 +17,14 @@ export async function loader({ request }: { request: LoaderFunctionArgs }) {
       products: true,
     },
   });
-  return json({ collections });
+  return json(
+    { collections },
+    {
+      headers: {
+        "ngrok-skip-browser-warning": "1",
+      },
+    },
+  );
 }
 
 export default function Index() {
@@ -25,7 +33,7 @@ export default function Index() {
   const collections: Collection[] = loaderData.collections;
   return (
     <Page>
-      <TitleBar title="Remix app template">
+      <TitleBar title="Collections">
         <button variant="primary" onClick={() => navigate("/app/operation")}>
           Create a collection
         </button>
@@ -68,7 +76,17 @@ export default function Index() {
                 {(c as Collection & { products: Product[] }).products.length}
               </IndexTable.Cell>
               <IndexTable.Cell>
-                {c.priority.charAt(0).toUpperCase() + c.priority.slice(1)}
+                <Badge
+                  tone={
+                    c.priority === "high"
+                      ? "critical"
+                      : c.priority === "medium"
+                        ? "warning"
+                        : "attention"
+                  }
+                >
+                  {c.priority.charAt(0).toUpperCase() + c.priority.slice(1)}
+                </Badge>
               </IndexTable.Cell>
             </IndexTable.Row>
           ))}
